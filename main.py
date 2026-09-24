@@ -44,3 +44,6 @@ for update in updates:
     
     print("\n1件目のProductID:")
     print(vulnerability["ProductStatuses"][0]["ProductID"])
+    
+    print("\n1件目の詳細:")
+    print(cvrf_data["Vulnerability"][0])
