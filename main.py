@@ -14,7 +14,8 @@ data = response.json()
 
 print("Microsoft Security Update Information")
 print("--------------------------------------")
-print(f"取得件数: {len(data)}")
+print(f"取得データの型: {type(data)}")
+print(f"取得データのキー: {list(data.keys())}")
 
-for item in data[:5]:
-    print(item)
+print("\n取得したデータ:")
+print(data)
