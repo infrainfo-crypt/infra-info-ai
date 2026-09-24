@@ -34,6 +34,9 @@ for update in updates:
 
     print("\n取得した詳細データのキー:")
     print(list(cvrf_data.keys()))
+    
+    print("\nVulnerability件数:")
+    print(len(cvrf_data["Vulnerability"]))
 
     print("\n詳細データ:")
     print(cvrf_data)
