@@ -38,11 +38,5 @@ for update in updates:
     print("\nVulnerability件数:")
     print(len(cvrf_data["Vulnerability"]))
 
-    print("\nVulnerabilityの1件目:")
-    print(cvrf_data["Vulnerability"][0])
-
-    print("\nProductTree:")
-    print(cvrf_data["ProductTree"])
-
     print("\n詳細データ:")
     print(cvrf_data)
