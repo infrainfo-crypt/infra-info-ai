@@ -38,5 +38,12 @@ for update in updates:
     print("\nVulnerability件数:")
     print(len(cvrf_data["Vulnerability"]))
 
+    vulnerability = cvrf_data["Vulnerability"][0]
+    print("\n1件目のCVE:")
+    print(vulnerability["CVE"])
+    
+    print("\n1件目のProductID:")
+    print(vulnerability["ProductStatuses"][0]["ProductID"])
+
     print("\n詳細データ:")
     print(cvrf_data)
