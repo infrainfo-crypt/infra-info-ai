@@ -24,10 +24,8 @@ encoding="utf-8-sig",
 newline=""
 ) as f:
 
-```
 reader = csv.DictReader(f)
 rows = list(reader)
-```
 
 print("--------------------------------------")
 print("記事生成開始")
