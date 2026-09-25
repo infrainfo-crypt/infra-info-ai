@@ -13,3 +13,9 @@ jobs:
 
       - name: Run Python
         run: python main.py
+
+      - name: Upload CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: msrc-security-update
+          path: msrc_2026-09.csv
