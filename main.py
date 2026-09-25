@@ -25,14 +25,14 @@ print("--------------------------------------")
 
 
 # =========================
-# 2. CSVに保存するデータ
+# CSVに保存するデータ
 # =========================
 
 results = []
 
 
 # =========================
-# 3. 各更新情報を処理
+# 各更新情報を処理
 # =========================
 
 for update in updates:
@@ -51,9 +51,15 @@ for update in updates:
 
     cvrf_data = cvrf_response.json()
 
+    vulnerabilities = cvrf_data.get(
+        "Vulnerability", []
+    )
+
+    print(f"Vulnerability件数: {len(vulnerabilities)}")
+
 
     # =========================
-    # 4. ProductID → 製品名の辞書を作成
+    # ProductID → 製品名
     # =========================
 
     product_map = {
@@ -65,15 +71,8 @@ for update in updates:
 
 
     # =========================
-    # 5. 脆弱性を全部処理
+    # 脆弱性を処理
     # =========================
-
-    vulnerabilities = cvrf_data.get(
-        "Vulnerability", []
-    )
-
-    print(f"Vulnerability件数: {len(vulnerabilities)}")
-
 
     for vulnerability in vulnerabilities:
 
@@ -94,7 +93,7 @@ for update in updates:
 
 
         # -------------------------
-        # Severity / Threat
+        # Severity
         # -------------------------
 
         severity = ""
@@ -103,29 +102,81 @@ for update in updates:
             "Threats", []
         ):
 
-            value = threat.get(
+            description = threat.get(
                 "Description", {}
-            ).get("Value", "")
+            )
 
-            if value:
+            value = description.get(
+                "Value", ""
+            )
+
+            if value in [
+                "Critical",
+                "Important",
+                "Moderate",
+                "Low"
+            ]:
                 severity = value
                 break
+
+
+        # -------------------------
+        # Attack Type
+        # -------------------------
+
+        attack_types = []
+
+        for threat in vulnerability.get(
+            "Threats", []
+        ):
+
+            description = threat.get(
+                "Description", {}
+            )
+
+            value = description.get(
+                "Value", ""
+            )
+
+            if value and value not in [
+                "Critical",
+                "Important",
+                "Moderate",
+                "Low"
+            ]:
+                attack_types.append(value)
+
+        attack_types = list(
+            dict.fromkeys(attack_types)
+        )
+
+        attack_type = "; ".join(
+            attack_types
+        )
 
 
         # -------------------------
         # CVSS
         # -------------------------
 
-        cvss = ""
+        cvss_scores = []
 
-        cvss_sets = vulnerability.get(
+        for score_set in vulnerability.get(
             "CVSSScoreSets", []
-        )
+        ):
 
-        if cvss_sets:
-            cvss = cvss_sets[0].get(
-                "BaseScore", ""
+            base_score = score_set.get(
+                "BaseScore"
             )
+
+            if base_score is not None:
+                cvss_scores.append(
+                    str(base_score)
+                )
+
+        cvss = "; ".join(
+            dict.fromkeys(cvss_scores)
+        )
 
 
         # -------------------------
@@ -158,50 +209,60 @@ for update in updates:
                     product_name
                 )
 
-
-        # 重複削除
         product_names = list(
             dict.fromkeys(product_names)
         )
 
-
-        # -------------------------
-        # Remediation
-        # -------------------------
-
-        fixed_build = ""
-
-        remediations = vulnerability.get(
-            "Remediations", []
+        product = "; ".join(
+            product_names
         )
 
-        for remediation in remediations:
 
-            build = remediation.get(
-                "FixedBuild", ""
+        # -------------------------
+        # FixedBuild
+        # -------------------------
+
+        fixed_builds = []
+
+        for remediation in vulnerability.get(
+            "Remediations", []
+        ):
+
+            fixed_build = remediation.get(
+                "FixedBuild"
             )
 
-            if build:
-                fixed_build = build
-                break
+            if fixed_build:
+                fixed_builds.append(
+                    str(fixed_build)
+                )
+
+        fixed_builds = list(
+            dict.fromkeys(fixed_builds)
+        )
+
+        fixed_build = "; ".join(
+            fixed_builds
+        )
 
 
         # -------------------------
-        # 1件分を保存
+        # CSV用データ
         # -------------------------
 
         results.append({
             "CVE": cve,
             "Title": title,
             "Severity": severity,
+            "AttackType": attack_type,
             "CVSS": cvss,
-            "Product": "; ".join(product_names),
+            "Product": product,
             "FixedBuild": fixed_build
         })
 
 
 # =========================
-# 6. CSV出力
+# CSV出力
 # =========================
 
 output_file = "msrc_2026-09.csv"
@@ -219,6 +280,7 @@ with open(
             "CVE",
             "Title",
             "Severity",
+            "AttackType",
             "CVSS",
             "Product",
             "FixedBuild"
@@ -231,7 +293,7 @@ with open(
 
 
 # =========================
-# 7. 完了メッセージ
+# 完了
 # =========================
 
 print("--------------------------------------")
