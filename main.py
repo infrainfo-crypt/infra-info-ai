@@ -67,3 +67,6 @@ for vulnerability in cvrf_data["Vulnerability"][:10]:
     print(f"Severity: {severity}")
     print(f"CVSS: {cvss}")
     print("--------------------------------------")
+    
+    print("\nProductTree:")
+    print(cvrf_data["ProductTree"])
