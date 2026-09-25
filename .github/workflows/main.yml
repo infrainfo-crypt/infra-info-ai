@@ -33,4 +33,4 @@ jobs:
           name: msrc-security-update
           path: |
             msrc_2026-09.csv
-            article_2026-09.md
+            articles/
