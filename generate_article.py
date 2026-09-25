@@ -46,7 +46,7 @@ with open(
 
 
 print("--------------------------------------")
-print(f"記事生成開始")
+print("記事生成開始")
 print(f"対象件数: {len(rows)}")
 print("--------------------------------------")
 
@@ -55,12 +55,33 @@ print("--------------------------------------")
 # 1件ずつ記事生成
 # =========================
 
+generated_count = 0
+skipped_count = 0
+
 for index, row in enumerate(rows, start=1):
 
     cve = row["CVE"]
 
-    print(f"[{index}/{len(rows)}] {cve} を処理中...")
+    output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
 
+    # すでに生成済みならスキップ
+    if output_file.exists():
+        print(
+            f"[{index}/{len(rows)}] {cve} "
+            f"→ スキップ（生成済み）"
+        )
+        skipped_count += 1
+        continue
+
+    print(
+        f"[{index}/{len(rows)}] {cve} "
+        f"を処理中..."
+    )
+
+
+    # =========================
+    # AIに渡すプロンプト
+    # =========================
 
     prompt = f"""
 あなたは企業向けのサイバーセキュリティ情報を
@@ -123,6 +144,10 @@ FixedBuild:
 """
 
 
+    # =========================
+    # AI記事生成
+    # =========================
+
     response = client.responses.create(
         model="gpt-5.6-luna",
         input=prompt
@@ -135,8 +160,6 @@ FixedBuild:
     # Markdown保存
     # =========================
 
-    output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
-
     with open(
         output_file,
         "w",
@@ -146,12 +169,22 @@ FixedBuild:
         f.write(article)
 
 
-    print(f"    完了: {output_file}")
+    generated_count += 1
 
+    print(
+        f"    完了: {output_file}"
+    )
+
+
+# =========================
+# 結果表示
+# =========================
 
 print("--------------------------------------")
 print("記事生成完了")
-print(f"生成件数: {len(rows)}")
+print(f"対象件数: {len(rows)}")
+print(f"新規生成: {generated_count}")
+print(f"スキップ: {skipped_count}")
 print(f"保存先: {OUTPUT_DIR}")
 print("--------------------------------------")
 ```
