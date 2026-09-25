@@ -1,6 +1,14 @@
 import requests
+import csv
 
-updates_url = "https://api.msrc.microsoft.com/cvrf/v3.0/Updates('2026-Sep')?api-version=2023-11-01"
+# =========================
+# 1. MSRCの月例更新情報を取得
+# =========================
+
+updates_url = (
+    "https://api.msrc.microsoft.com/cvrf/v3.0/"
+    "Updates('2026-Sep')?api-version=2023-11-01"
+)
 
 response = requests.get(
     updates_url,
@@ -15,13 +23,24 @@ updates = response.json()["value"]
 print("Microsoft Security Update Information")
 print("--------------------------------------")
 
+
+# =========================
+# 2. CSVに保存するデータ
+# =========================
+
+results = []
+
+
+# =========================
+# 3. 各更新情報を処理
+# =========================
+
 for update in updates:
+
     print(f"ID: {update['ID']}")
     print(f"Title: {update['DocumentTitle']}")
-    print(f"Initial Release: {update['InitialReleaseDate']}")
-    print(f"Current Release: {update['CurrentReleaseDate']}")
-    print(f"CVRF URL: {update['CvrfUrl']}")
 
+    # CVRF詳細情報を取得
     cvrf_response = requests.get(
         update["CvrfUrl"],
         headers={"Accept": "application/json"},
@@ -32,62 +51,189 @@ for update in updates:
 
     cvrf_data = cvrf_response.json()
 
-    print("\n取得した詳細データのキー:")
-    print(list(cvrf_data.keys()))
 
-    print("\nVulnerability件数:")
-    print(len(cvrf_data["Vulnerability"]))
+    # =========================
+    # 4. ProductID → 製品名の辞書を作成
+    # =========================
 
-    # 1件目の基本情報
-    vulnerability = cvrf_data["Vulnerability"][0]
+    product_map = {
+        product["ProductID"]: product.get("Value", "")
+        for product in cvrf_data["ProductTree"].get(
+            "FullProductName", []
+        )
+    }
 
-    print("\n1件目のCVE:")
-    print(vulnerability["CVE"])
 
-    print("\n1件目のProductID:")
-    print(vulnerability["ProductStatuses"][0]["ProductID"])
+    # =========================
+    # 5. 脆弱性を全部処理
+    # =========================
 
-    # 脆弱性一覧
-    print("\n脆弱性一覧:")
-    print("--------------------------------------")
+    vulnerabilities = cvrf_data.get(
+        "Vulnerability", []
+    )
 
-    for vulnerability in cvrf_data["Vulnerability"][:10]:
+    print(f"Vulnerability件数: {len(vulnerabilities)}")
 
-        cve = vulnerability.get("CVE")
+
+    for vulnerability in vulnerabilities:
+
+        # -------------------------
+        # CVE
+        # -------------------------
+
+        cve = vulnerability.get("CVE", "")
+
+
+        # -------------------------
+        # Title
+        # -------------------------
 
         title = vulnerability.get(
             "Title", {}
-        ).get("Value")
+        ).get("Value", "")
 
-        # Severity
+
+        # -------------------------
+        # Severity / Threat
+        # -------------------------
+
         severity = ""
 
-        for threat in vulnerability.get("Threats", []):
+        for threat in vulnerability.get(
+            "Threats", []
+        ):
+
             value = threat.get(
                 "Description", {}
-            ).get("Value")
+            ).get("Value", "")
 
             if value:
                 severity = value
                 break
 
+
+        # -------------------------
         # CVSS
+        # -------------------------
+
         cvss = ""
 
-        if vulnerability.get("CVSSScoreSets"):
-            cvss = vulnerability["CVSSScoreSets"][0].get(
-                "BaseScore"
+        cvss_sets = vulnerability.get(
+            "CVSSScoreSets", []
+        )
+
+        if cvss_sets:
+            cvss = cvss_sets[0].get(
+                "BaseScore", ""
             )
 
-        print(f"CVE: {cve}")
-        print(f"Title: {title}")
-        print(f"Severity: {severity}")
-        print(f"CVSS: {cvss}")
-        print("--------------------------------------")
 
-    # ProductTreeの確認
-    print("\nProductTree:")
-    print("--------------------------------------")
+        # -------------------------
+        # ProductID → 製品名
+        # -------------------------
 
-    for product in cvrf_data["ProductTree"]["FullProductName"][:10]:
-        print(product)
+        product_ids = set()
+
+        for status in vulnerability.get(
+            "ProductStatuses", []
+        ):
+
+            for product_id in status.get(
+                "ProductID", []
+            ):
+
+                product_ids.add(product_id)
+
+
+        product_names = []
+
+        for product_id in product_ids:
+
+            product_name = product_map.get(
+                product_id
+            )
+
+            if product_name:
+                product_names.append(
+                    product_name
+                )
+
+
+        # 重複削除
+        product_names = list(
+            dict.fromkeys(product_names)
+        )
+
+
+        # -------------------------
+        # Remediation
+        # -------------------------
+
+        fixed_build = ""
+
+        remediations = vulnerability.get(
+            "Remediations", []
+        )
+
+        for remediation in remediations:
+
+            build = remediation.get(
+                "FixedBuild", ""
+            )
+
+            if build:
+                fixed_build = build
+                break
+
+
+        # -------------------------
+        # 1件分を保存
+        # -------------------------
+
+        results.append({
+            "CVE": cve,
+            "Title": title,
+            "Severity": severity,
+            "CVSS": cvss,
+            "Product": "; ".join(product_names),
+            "FixedBuild": fixed_build
+        })
+
+
+# =========================
+# 6. CSV出力
+# =========================
+
+output_file = "msrc_2026-09.csv"
+
+with open(
+    output_file,
+    "w",
+    newline="",
+    encoding="utf-8-sig"
+) as f:
+
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "CVE",
+            "Title",
+            "Severity",
+            "CVSS",
+            "Product",
+            "FixedBuild"
+        ]
+    )
+
+    writer.writeheader()
+
+    writer.writerows(results)
+
+
+# =========================
+# 7. 完了メッセージ
+# =========================
+
+print("--------------------------------------")
+print(f"CSV出力完了: {output_file}")
+print(f"出力件数: {len(results)}")
