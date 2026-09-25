@@ -1,6 +1,8 @@
 import csv
 import os
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from openai import OpenAI
@@ -9,64 +11,16 @@ from openai import OpenAI
 INPUT_FILE = "msrc_2026-09.csv"
 OUTPUT_DIR = Path("articles")
 
-
-client = OpenAI(
-    api_key=os.environ["OPENAI_API_KEY"]
-)
-
-
-OUTPUT_DIR.mkdir(exist_ok=True)
+MAX_WORKERS = 20
+MAX_RETRIES = 5
 
 
 def safe_filename(value):
     return re.sub(r"[^a-zA-Z0-9._-]", "_", value)
 
 
-with open(
-    INPUT_FILE,
-    "r",
-    encoding="utf-8-sig",
-    newline=""
-) as f:
-    reader = csv.DictReader(f)
-    rows = list(reader)
-
-
-print("--------------------------------------")
-print("記事生成開始")
-print(f"対象件数: {len(rows)}")
-print("--------------------------------------")
-
-
-generated_count = 0
-skipped_count = 0
-
-
-for index, row in enumerate(rows, start=1):
-
-    cve = row["CVE"]
-
-    output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
-
-
-    if output_file.exists():
-        print(
-            f"[{index}/{len(rows)}] {cve} "
-            f"→ スキップ（生成済み）"
-        )
-
-        skipped_count += 1
-
-        continue
-
-
-    print(
-        f"[{index}/{len(rows)}] {cve} "
-        f"を処理中..."
-    )
-
-
-    prompt = f"""
+def create_prompt(row):
+    return f"""
 あなたは企業向けのサイバーセキュリティ情報を
 わかりやすく整理する編集者です。
 
@@ -127,29 +81,131 @@ FixedBuild:
 """
 
 
-    response = client.responses.create(
-        model="gpt-5.6-luna",
-        input=prompt
+def generate_one(row):
+    cve = row["CVE"]
+    output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
+
+    if output_file.exists():
+        return cve, "skipped", None
+
+    client = OpenAI(
+        api_key=os.environ["OPENAI_API_KEY"]
     )
 
+    prompt = create_prompt(row)
 
-    article = response.output_text
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = client.responses.create(
+                model="gpt-5.6-luna",
+                input=prompt
+            )
+
+            article = response.output_text
+
+            temp_file = OUTPUT_DIR / f"{safe_filename(cve)}.tmp"
+
+            with open(
+                temp_file,
+                "w",
+                encoding="utf-8"
+            ) as f:
+                f.write(article)
+
+            temp_file.replace(output_file)
+
+            return cve, "generated", None
+
+        except Exception as e:
+            error_text = str(e)
+
+            if "insufficient_quota" in error_text:
+                return cve, "failed", error_text
+
+            if attempt == MAX_RETRIES:
+                return cve, "failed", error_text
+
+            wait_seconds = 2 ** attempt
+
+            time.sleep(wait_seconds)
+
+    return cve, "failed", "unknown error"
 
 
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+with open(
+    INPUT_FILE,
+    "r",
+    encoding="utf-8-sig",
+    newline=""
+) as f:
+    reader = csv.DictReader(f)
+    rows = list(reader)
+
+
+print("--------------------------------------")
+print("記事生成開始")
+print(f"対象件数: {len(rows)}")
+print(f"同時実行数: {MAX_WORKERS}")
+print("--------------------------------------")
+
+
+generated_count = 0
+skipped_count = 0
+failed_count = 0
+failed_items = []
+
+
+with ThreadPoolExecutor(
+    max_workers=MAX_WORKERS
+) as executor:
+
+    futures = [
+        executor.submit(generate_one, row)
+        for row in rows
+    ]
+
+    for index, future in enumerate(
+        as_completed(futures),
+        start=1
+    ):
+        cve, status, error = future.result()
+
+        if status == "generated":
+            generated_count += 1
+            print(
+                f"[{index}/{len(rows)}] "
+                f"{cve} → 完了"
+            )
+
+        elif status == "skipped":
+            skipped_count += 1
+            print(
+                f"[{index}/{len(rows)}] "
+                f"{cve} → スキップ"
+            )
+
+        else:
+            failed_count += 1
+            failed_items.append(
+                f"{cve}: {error}"
+            )
+
+            print(
+                f"[{index}/{len(rows)}] "
+                f"{cve} → 失敗"
+            )
+
+
+if failed_items:
     with open(
-        output_file,
+        OUTPUT_DIR / "failed_articles.txt",
         "w",
         encoding="utf-8"
     ) as f:
-        f.write(article)
-
-
-    generated_count += 1
-
-
-    print(
-        f"    完了: {output_file}"
-    )
+        for item in failed_items:
+            f.write(item + "\n")
 
 
 print("--------------------------------------")
@@ -157,5 +213,6 @@ print("記事生成完了")
 print(f"対象件数: {len(rows)}")
 print(f"新規生成: {generated_count}")
 print(f"スキップ: {skipped_count}")
+print(f"失敗: {failed_count}")
 print(f"保存先: {OUTPUT_DIR}")
 print("--------------------------------------")
