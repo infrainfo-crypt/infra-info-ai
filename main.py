@@ -34,38 +34,60 @@ for update in updates:
 
     print("\n取得した詳細データのキー:")
     print(list(cvrf_data.keys()))
-    
+
     print("\nVulnerability件数:")
     print(len(cvrf_data["Vulnerability"]))
 
+    # 1件目の基本情報
     vulnerability = cvrf_data["Vulnerability"][0]
+
     print("\n1件目のCVE:")
     print(vulnerability["CVE"])
-    
+
     print("\n1件目のProductID:")
     print(vulnerability["ProductStatuses"][0]["ProductID"])
+
+    # 脆弱性一覧
     print("\n脆弱性一覧:")
     print("--------------------------------------")
 
-for vulnerability in cvrf_data["Vulnerability"][:10]:
-    cve = vulnerability.get("CVE")
-    title = vulnerability.get("Title", {}).get("Value")
+    for vulnerability in cvrf_data["Vulnerability"][:10]:
 
-    severity = ""
-    for threat in vulnerability.get("Threats", []):
-        value = threat.get("Description", {}).get("Value")
-        if value:
-            severity = value
-            break
+        cve = vulnerability.get("CVE")
 
-    cvss = ""
-    if vulnerability.get("CVSSScoreSets"):
-        cvss = vulnerability["CVSSScoreSets"][0].get("BaseScore")
+        title = vulnerability.get(
+            "Title", {}
+        ).get("Value")
 
-    print(f"CVE: {cve}")
-    print(f"Title: {title}")
-    print(f"Severity: {severity}")
-    print(f"CVSS: {cvss}")
+        # Severity
+        severity = ""
+
+        for threat in vulnerability.get("Threats", []):
+            value = threat.get(
+                "Description", {}
+            ).get("Value")
+
+            if value:
+                severity = value
+                break
+
+        # CVSS
+        cvss = ""
+
+        if vulnerability.get("CVSSScoreSets"):
+            cvss = vulnerability["CVSSScoreSets"][0].get(
+                "BaseScore"
+            )
+
+        print(f"CVE: {cve}")
+        print(f"Title: {title}")
+        print(f"Severity: {severity}")
+        print(f"CVSS: {cvss}")
+        print("--------------------------------------")
+
+    # ProductTreeの確認
+    print("\nProductTree:")
     print("--------------------------------------")
-    print("\nProductTreeのキー:")
-    print(cvrf_data["ProductTree"].keys())
+
+    for product in cvrf_data["ProductTree"]["FullProductName"][:10]:
+        print(product)
