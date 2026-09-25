@@ -23,13 +23,11 @@ updates = response.json()["value"]
 print("Microsoft Security Update Information")
 print("--------------------------------------")
 
-
 # =========================
 # CSVに保存するデータ
 # =========================
 
 results = []
-
 
 # =========================
 # 各更新情報を処理
@@ -57,7 +55,6 @@ for update in updates:
 
     print(f"Vulnerability件数: {len(vulnerabilities)}")
 
-
     # =========================
     # ProductID → 製品名
     # =========================
@@ -68,7 +65,6 @@ for update in updates:
             "FullProductName", []
         )
     }
-
 
     # =========================
     # 脆弱性を処理
@@ -82,7 +78,6 @@ for update in updates:
 
         cve = vulnerability.get("CVE", "")
 
-
         # -------------------------
         # Title
         # -------------------------
@@ -90,7 +85,6 @@ for update in updates:
         title = vulnerability.get(
             "Title", {}
         ).get("Value", "")
-
 
         # -------------------------
         # Severity
@@ -119,12 +113,31 @@ for update in updates:
                 severity = value
                 break
 
-
         # -------------------------
         # Attack Type
         # -------------------------
+        # MSRCのThreatsには
+        # 「Publicly Disclosed」「Exploited」
+        # 「Latest Software Release」など、
+        # 攻撃手法ではない情報も含まれるため除外する。
+        #
+        # AttackTypeとして扱うのは、
+        # 実際の脆弱性の種類を表す値のみ。
+        # -------------------------
 
         attack_types = []
+
+        excluded_threat_values = {
+            "Publicly Disclosed:No",
+            "Publicly Disclosed:Yes",
+            "Exploited:No",
+            "Exploited:Yes",
+            "Latest Software Release:Exploitation Less Likely",
+            "Latest Software Release:Exploitation More Likely",
+            "Latest Software Release:Exploitation Detected",
+            "Latest Software Release:Exploitation Unlikely",
+            "Latest Software Release:Exploitation Likely"
+        }
 
         for threat in vulnerability.get(
             "Threats", []
@@ -136,15 +149,41 @@ for update in updates:
 
             value = description.get(
                 "Value", ""
-            )
+            ).strip()
 
-            if value and value not in [
+            if not value:
+                continue
+
+            if value in [
                 "Critical",
                 "Important",
                 "Moderate",
                 "Low"
             ]:
-                attack_types.append(value)
+                continue
+
+            if value in excluded_threat_values:
+                continue
+
+            # 「Latest Software Release:～」で始まる
+            # 評価情報も除外
+            if value.startswith(
+                "Latest Software Release:"
+            ):
+                continue
+
+            # 公開済み・悪用済み情報も除外
+            if value.startswith(
+                "Publicly Disclosed:"
+            ):
+                continue
+
+            if value.startswith(
+                "Exploited:"
+            ):
+                continue
+
+            attack_types.append(value)
 
         attack_types = list(
             dict.fromkeys(attack_types)
@@ -153,7 +192,6 @@ for update in updates:
         attack_type = "; ".join(
             attack_types
         )
-
 
         # -------------------------
         # CVSS
@@ -178,7 +216,6 @@ for update in updates:
             dict.fromkeys(cvss_scores)
         )
 
-
         # -------------------------
         # ProductID → 製品名
         # -------------------------
@@ -194,7 +231,6 @@ for update in updates:
             ):
 
                 product_ids.add(product_id)
-
 
         product_names = []
 
@@ -216,7 +252,6 @@ for update in updates:
         product = "; ".join(
             product_names
         )
-
 
         # -------------------------
         # FixedBuild
@@ -244,7 +279,6 @@ for update in updates:
         fixed_build = "; ".join(
             fixed_builds
         )
-
 
         # -------------------------
         # CSV用データ
