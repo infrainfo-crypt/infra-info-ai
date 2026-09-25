@@ -1,4 +1,3 @@
-```python
 import csv
 import os
 import re
@@ -6,84 +5,62 @@ from pathlib import Path
 
 from openai import OpenAI
 
-
 INPUT_FILE = "msrc_2026-09.csv"
 OUTPUT_DIR = Path("articles")
 
 client = OpenAI(
-    api_key=os.environ["OPENAI_API_KEY"]
+api_key=os.environ["OPENAI_API_KEY"]
 )
-
-
-# =========================
-# 出力先
-# =========================
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-
-# =========================
-# ファイル名用
-# =========================
-
 def safe_filename(value):
-    return re.sub(r"[^a-zA-Z0-9._-]", "_", value)
-
-
-# =========================
-# CSV読み込み
-# =========================
+return re.sub(r"[^a-zA-Z0-9.*-]", "*", value)
 
 with open(
-    INPUT_FILE,
-    "r",
-    encoding="utf-8-sig",
-    newline=""
+INPUT_FILE,
+"r",
+encoding="utf-8-sig",
+newline=""
 ) as f:
 
-    reader = csv.DictReader(f)
-    rows = list(reader)
-
+```
+reader = csv.DictReader(f)
+rows = list(reader)
+```
 
 print("--------------------------------------")
 print("記事生成開始")
 print(f"対象件数: {len(rows)}")
 print("--------------------------------------")
 
-
-# =========================
-# 1件ずつ記事生成
-# =========================
-
 generated_count = 0
 skipped_count = 0
 
 for index, row in enumerate(rows, start=1):
 
-    cve = row["CVE"]
+```
+cve = row["CVE"]
 
-    output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
+output_file = OUTPUT_DIR / f"{safe_filename(cve)}.md"
 
-    # すでに生成済みならスキップ
-    if output_file.exists():
-        print(
-            f"[{index}/{len(rows)}] {cve} "
-            f"→ スキップ（生成済み）"
-        )
-        skipped_count += 1
-        continue
-
+if output_file.exists():
     print(
         f"[{index}/{len(rows)}] {cve} "
-        f"を処理中..."
+        f"→ スキップ（生成済み）"
     )
+    skipped_count += 1
+    continue
+
+print(
+    f"[{index}/{len(rows)}] {cve} "
+    f"を処理中..."
+)
 
 
-    # =========================
-    # AIに渡すプロンプト
-    # =========================
+prompt = f"""
+```
 
-    prompt = f"""
 あなたは企業向けのサイバーセキュリティ情報を
 わかりやすく整理する編集者です。
 
@@ -143,42 +120,30 @@ FixedBuild:
 {row["FixedBuild"]}
 """
 
+```
+response = client.responses.create(
+    model="gpt-5.6-luna",
+    input=prompt
+)
 
-    # =========================
-    # AI記事生成
-    # =========================
-
-    response = client.responses.create(
-        model="gpt-5.6-luna",
-        input=prompt
-    )
-
-    article = response.output_text
+article = response.output_text
 
 
-    # =========================
-    # Markdown保存
-    # =========================
+with open(
+    output_file,
+    "w",
+    encoding="utf-8"
+) as f:
 
-    with open(
-        output_file,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        f.write(article)
+    f.write(article)
 
 
-    generated_count += 1
+generated_count += 1
 
-    print(
-        f"    完了: {output_file}"
-    )
-
-
-# =========================
-# 結果表示
-# =========================
+print(
+    f"    完了: {output_file}"
+)
+```
 
 print("--------------------------------------")
 print("記事生成完了")
@@ -187,4 +152,3 @@ print(f"新規生成: {generated_count}")
 print(f"スキップ: {skipped_count}")
 print(f"保存先: {OUTPUT_DIR}")
 print("--------------------------------------")
-```
